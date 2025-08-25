@@ -6,8 +6,14 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+// Include SPI and CAN libraries for CAN communcation with broader system
+#include <SPI.h> 
+#include <mcp_can.h>
 
 
+// Create an instance of the MCP_CAN class with the appropriate CS pin
+const int SPI_CS_PIN = 52; // for the due, use either 4, 10, or 52 for CS pins
+MCP_CAN CAN(SPI_CS_PIN); // create instance of CAN bus
 
 // Define pin variables
 const int INA1 = 2;
@@ -25,25 +31,25 @@ const int PWM_PIN3 = 9;
 // Define minimum, maximum speed and commanded speed (manually update these while testing)
 const int minSpeed = -530; // Minimum speed in RPM
 const int maxSpeed = 530; // Maximum speed in RPM
-// For now, manuall set the rover speed in the format {yaw rate, x velocity, y velocity}
-std::vector<float> roverSpeed = {0.1f, 0.0f, 12.0f}; 
+// For now, manually set the rover speed in the format {yaw rate, x velocity, y velocity}. Units rad/s and inches/sec
+std::vector<float> roverSpeed = {1.5f, 0.0f, 0.0f}; // Initial rover speed for testing, will be updated by CAN messages
 
-// Define variables for encoder reading and initialize object
-const int encoderPinA1 = 48; // Must be interrupt capable; keep in mind if you change to another board
-const int encoderPinB1 = 49;
+// Define variables for encoder reading and initialize object 
+const int encoderPinA1 = 46; // Must be interrupt capable; keep in mind if you change to another board
+const int encoderPinB1 = 47;
 
-const int encoderPinA2 = 50; // Must be interrupt capable; keep in mind if you change to another board
-const int encoderPinB2 = 51;
+const int encoderPinA2 = 48; // Must be interrupt capable; keep in mind if you change to another board
+const int encoderPinB2 = 49;
 
-const int encoderPinA3 = 52; // Must be interrupt capable; keep in mind if you change to another board
-const int encoderPinB3 = 53;
+const int encoderPinA3 = 50; // Must be interrupt capable; keep in mind if you change to another board
+const int encoderPinB3 = 51;
 
 Encoder Enc1(encoderPinA1, encoderPinB1);
 Encoder Enc2(encoderPinA2, encoderPinB2);
 Encoder Enc3(encoderPinA3, encoderPinB3);
 
 // Define values for converting the encoder readings to speed (RPM)
-const int encoderCPR = 1200; // Counts per revolution of the encoder (output shaft)
+const int encoderCPR = 4480; // Counts per revolution of the encoder (output shaft) (for 70:1 reduction)
 unsigned long lastTime = 0;
 
 // Initialize the PID controller object
@@ -63,7 +69,26 @@ PIDController PID3(PID_K, PID_I, PID_D, -255, 255); // May not need three separa
 // Note: negative PWM values will not actually be output as negative PWM values, but will simply reverse the motor direction and use the magnitue for speed
 int speedToPWM(int commandedSpeed) {
   // Assuming speed is in RPM and we want to convert it to a PWM value
-  return map(commandedSpeed, minSpeed, maxSpeed, -255, 255);
+  // Note: this is just used as an initial guess for the PWM value, and will be adjusted by the PID controller
+
+//   // Simple linear mapping, update with better mapping method
+//   return map(commandedSpeed, minSpeed, maxSpeed, -255, 255);
+
+  // 6-th order polynomial mapping
+  double rpmMath = abs(commandedSpeed);
+  double rpm2 = rpmMath * rpmMath;
+  double rpm3 = rpm2 * rpmMath;
+  double rpm4 = rpm3 * rpmMath;
+  double rpm5 = rpm4 * rpmMath;
+  double rpm6 = rpm5 * rpmMath;
+  if (commandedSpeed > 0) {
+    float pwm = -6.665e-10*rpm6 + 3.163411e-07*rpm5 - 5.744087e-05*rpm4 + 5.096598e-03*rpm3 - 0.226899*rpm2 + 5.439907*rpmMath - 17.815152;
+    return constrain((int)pwm, 0, 255); // Ensure PWM is within valid range
+  } else if (commandedSpeed < 0) {
+    float pwm = 6.665e-10*rpm6 - 3.163411e-07*rpm5 - 5.744087e-05*rpm4 - 5.096598e-03*rpm3 + 0.226899*rpm2 - 5.439907*rpmMath + 17.815152;
+    return constrain((int)pwm, -255, 0); // Ensure PWM is within valid range
+  }
+  return 0; // If speed is zero, return zero PWM
 }
 
 // Define a function to send a motor output
@@ -76,10 +101,18 @@ void sendMotorOutput(const std::vector<int>& speeds) {
         if (speeds[i] == 0) {
             digitalWrite(INA[i], LOW);
             digitalWrite(INB[i], LOW);
+            // Serial print for debugging
+            Serial.print("Sent 0 speed to motor ");
+            Serial.println(i + 1);
         } else {
             digitalWrite(INA[i], speeds[i] > 0 ? HIGH : LOW);
             digitalWrite(INB[i], speeds[i] < 0 ? HIGH : LOW);
             analogWrite(PWM_PIN[i], abs(speeds[i]));
+            // Serial print for debugging
+            Serial.print("Sent speed ");
+            Serial.print(speeds[i]);
+            Serial.print(" to motor ");
+            Serial.println(i + 1);
         }
     }
 }
@@ -99,13 +132,13 @@ std::vector<float> multiplyMatrix(const std::vector<std::vector<float>>& A, cons
 float RAD_SEC_TO_RPM = 9.549296596425384; // Conversion factor from radians per second to RPM
 std::vector<float> kiwiDriveInverseKinematics(float angularVelocity, float xVelocity, float yVelocity) {
     // Define the wheel radius and distance between wheels
-    const float wheelCenterRadius = 12.0f; // Distance from center of rover to wheel, inches
+    const float wheelCenterRadius = 12.25f; // Distance from center of rover to wheel, inches
     const float wheelRadius = 2.375f; // Radius of the wheel, inches
 
     // Form the H and Vb matrices for inverse kinematics
     std::vector<std::vector<float>> H = {
         {-wheelCenterRadius, 1, 0},
-        {-wheelCenterRadius, -1/2, -static_cast<float>(sin(M_PI/3))},
+        {-wheelCenterRadius, -0.5f, -static_cast<float>(sin(M_PI/3))},
         {-wheelCenterRadius, -0.5f, static_cast<float>(sin(M_PI/3))}
     };
 
@@ -122,6 +155,14 @@ std::vector<float> kiwiDriveInverseKinematics(float angularVelocity, float xVelo
 
 
 void setup() {
+  // Ensure CAN bus is initialized properly
+  if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
+  } else {
+    while(1);
+  }
+  CAN.setMode(MCP_NORMAL);
+
+  // Start serial communication for debugging
   Serial.begin(115200);
 
   // Initialize pins for motor control
@@ -144,6 +185,26 @@ long oldPosition2  = 0;
 long oldPosition3  = 0;
 
 void loop() {
+  // First, receive CAN messages to update rover speed if available
+  if (CAN.checkReceive() == CAN_MSGAVAIL) {
+    long unsigned int rxId;
+    unsigned char len = 0;
+    unsigned char rxBuf[8];
+
+    CAN.readMsgBuf(&rxId, &len, rxBuf);
+    if (rxId == 0x140 && len == 12) { // Assuming message ID 0x140 and 12 bytes for rover speed
+        float newYawRate, newXVelocity, newYVelocity;
+        memcpy(&newYawRate, &rxBuf[0], 4);
+        memcpy(&newXVelocity, &rxBuf[4], 4);
+        memcpy(&newYVelocity, &rxBuf[8], 4);
+        roverSpeed = {newYawRate, newXVelocity, newYVelocity}; // Update rover speed
+        Serial.print("Updated rover speed from CAN: ");
+        Serial.print("Yaw Rate: "); Serial.print(newYawRate);
+        Serial.print(", X Velocity: "); Serial.print(newXVelocity);
+        Serial.print(", Y Velocity: "); Serial.println(newYVelocity);
+    }
+  }
+
   // Read the encoder position and calculate speed
   long newPosition1 = Enc1.read();
   long newPosition2 = Enc2.read();
@@ -153,9 +214,9 @@ void loop() {
   long deltaPosition1 = newPosition1 - oldPosition1;
   long deltaPosition2 = newPosition2 - oldPosition2;
   long deltaPosition3 = newPosition3 - oldPosition3;
-  float RPM1Actual = -(deltaPosition1 / (float)encoderCPR) * (60000.0 / dt);
-  float RPM2Actual = -(deltaPosition2 / (float)encoderCPR) * (60000.0 / dt);
-  float RPM3Actual = -(deltaPosition3 / (float)encoderCPR) * (60000.0 / dt);
+  float RPM1Actual = (deltaPosition1 / (float)encoderCPR) * (60000.0 / dt); // Removed the negative sign as I fixed the wiring polarity
+  float RPM2Actual = (deltaPosition2 / (float)encoderCPR) * (60000.0 / dt);
+  float RPM3Actual = (deltaPosition3 / (float)encoderCPR) * (60000.0 / dt);
   // Update time and store old positions
   lastTime = currentTime;
   oldPosition1 = newPosition1;
@@ -183,8 +244,8 @@ void loop() {
   // Send the motor output
   sendMotorOutput({totalPWM1, totalPWM2, totalPWM3});
 
-  // Print the current state for Motor 1 for debugging
-  Serial.print("setpoint:");
+//   // Print the current state for Motor 1 for debugging
+  Serial.print("setpoint motor 1:");
   Serial.print(commandedSpeeds[0]);
   Serial.print(" rpm:");
   Serial.print(RPM1Actual);
@@ -194,6 +255,30 @@ void loop() {
   Serial.print(PWM1Base);
   Serial.print(" deltaPWM:");
   Serial.print(deltaPWM1);
+  Serial.print(" time:");
+  Serial.println(lastTime);
+  Serial.print("setpoint motor 2:");
+  Serial.print(commandedSpeeds[1]);
+  Serial.print(" rpm:");
+  Serial.print(RPM2Actual);
+  Serial.print(" pwm:");
+  Serial.print(totalPWM2);
+  Serial.print(" basePWM:");
+  Serial.print(PWM2Base);
+  Serial.print(" deltaPWM:");
+  Serial.print(deltaPWM2);
+  Serial.print(" time:");
+  Serial.println(lastTime);
+  Serial.print("setpoint motor 3:");
+  Serial.print(commandedSpeeds[2]);
+  Serial.print(" rpm:");
+  Serial.print(RPM3Actual);
+  Serial.print(" pwm:");
+  Serial.print(totalPWM3);
+  Serial.print(" basePWM:");
+  Serial.print(PWM3Base);
+  Serial.print(" deltaPWM:");
+  Serial.print(deltaPWM3);
   Serial.print(" time:");
   Serial.println(lastTime);
 
