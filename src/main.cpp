@@ -13,6 +13,7 @@
 
 // Create an instance of the MCP_CAN class with the appropriate CS pin
 const int SPI_CS_PIN = 52; // for the due, use either 4, 10, or 52 for CS pins
+const int SPI_INT_PIN = 53;
 MCP_CAN CAN(SPI_CS_PIN); // create instance of CAN bus
 
 // Define pin variables
@@ -155,15 +156,17 @@ std::vector<float> kiwiDriveInverseKinematics(float angularVelocity, float xVelo
 
 
 void setup() {
+  Serial.begin(115200); // Move this to the top
+
   // Ensure CAN bus is initialized properly
   if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
+    Serial.println("CAN BUS Shield init ok!");
   } else {
+    Serial.println("CAN BUS Shield init fail");
     while(1);
   }
-  CAN.setMode(MCP_NORMAL);
 
-  // Start serial communication for debugging
-  Serial.begin(115200);
+  CAN.setMode(MCP_NORMAL);
 
   // Initialize pins for motor control
   pinMode(INA1, OUTPUT);
@@ -175,33 +178,57 @@ void setup() {
   pinMode(INA3, OUTPUT);
   pinMode(INB3, OUTPUT);
   pinMode(PWM_PIN3, OUTPUT);
+
+  // Initialize interrupt pin
+  pinMode(SPI_INT_PIN, INPUT);
   Serial.println("Motor Control Initialized");
+
+  float lastTime = millis(); // Initialize lastTime here!
 }
-
-
 
 long oldPosition1  = 0;
 long oldPosition2  = 0;
 long oldPosition3  = 0;
 
+unsigned long lastCanTestTime = 0; // Just for testing CAN messages
+
+
 void loop() {
+
+  // CAN test message: send every 1000 ms
+    if (millis() - lastCanTestTime > 5000) {
+        Serial.println("About to send CAN test message");
+        byte testData[2] = {0xAB, 0xCD};
+        byte sndStat = CAN.sendMsgBuf(0x123, 0, 2, testData);
+        Serial.print("CAN send status: "); Serial.println(sndStat);
+        Serial.println("Sent CAN test message: 0x123 [0xAB 0xCD]");
+        lastCanTestTime = millis();
+    }
+
   // First, receive CAN messages to update rover speed if available
   if (CAN.checkReceive() == CAN_MSGAVAIL) {
     long unsigned int rxId;
     unsigned char len = 0;
-    unsigned char rxBuf[8];
+    unsigned char rxBuf[8];    
 
     CAN.readMsgBuf(&rxId, &len, rxBuf);
-    if (rxId == 0x140 && len == 12) { // Assuming message ID 0x140 and 12 bytes for rover speed
-        float newYawRate, newXVelocity, newYVelocity;
+
+    if (rxId == 0x140 && len == 8) { // Frame 1: omega and vx
+        float newYawRate, newXVelocity;
         memcpy(&newYawRate, &rxBuf[0], 4);
         memcpy(&newXVelocity, &rxBuf[4], 4);
-        memcpy(&newYVelocity, &rxBuf[8], 4);
-        roverSpeed = {newYawRate, newXVelocity, newYVelocity}; // Update rover speed
+        roverSpeed[0] = newYawRate;
+        roverSpeed[1] = newXVelocity;
         Serial.print("Updated rover speed from CAN: ");
         Serial.print("Yaw Rate: "); Serial.print(newYawRate);
         Serial.print(", X Velocity: "); Serial.print(newXVelocity);
-        Serial.print(", Y Velocity: "); Serial.println(newYVelocity);
+    }
+    else if (rxId == 0x141 && len == 4) { // Frame 2: vy
+      float newYVelocity;
+        memcpy(&newYVelocity, &rxBuf[0], 4);
+        roverSpeed[2] = newYVelocity;
+        Serial.print("Updated rover speed from CAN: ");
+        Serial.print("Y Velocity: "); Serial.println(newYVelocity);
     }
   }
 
@@ -210,7 +237,8 @@ void loop() {
   long newPosition2 = Enc2.read();
   long newPosition3 = Enc3.read();
   unsigned long currentTime = millis();
-  float dt = currentTime - lastTime; // Time difference in milliseconds
+  float dt = currentTime - lastTime;
+  if (dt <= 0) dt = 1; // Prevent division by zero or negative time
   long deltaPosition1 = newPosition1 - oldPosition1;
   long deltaPosition2 = newPosition2 - oldPosition2;
   long deltaPosition3 = newPosition3 - oldPosition3;
