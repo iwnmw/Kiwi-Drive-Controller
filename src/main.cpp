@@ -33,7 +33,7 @@ const int PWM_PIN3 = 9;
 const int minSpeed = -530; // Minimum speed in RPM
 const int maxSpeed = 530; // Maximum speed in RPM
 // For now, manually set the rover speed in the format {yaw rate, x velocity, y velocity}. Units rad/s and inches/sec
-std::vector<float> roverSpeed = {1.5f, 0.0f, 0.0f}; // Initial rover speed for testing, will be updated by CAN messages
+std::vector<float> roverSpeed = {0.0f, 0.0f, 0.0f}; // Initialize rover speed to 0, will be updated by CAN messages
 
 // Define variables for encoder reading and initialize object 
 const int encoderPinA1 = 46; // Must be interrupt capable; keep in mind if you change to another board
@@ -160,9 +160,9 @@ void setup() {
 
   // Ensure CAN bus is initialized properly
   if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
-    Serial.println("CAN BUS Shield init ok!");
+    // Serial.println("CAN BUS Shield init ok!");
   } else {
-    Serial.println("CAN BUS Shield init fail");
+    // Serial.println("CAN BUS Shield init fail");
     while(1);
   }
 
@@ -181,7 +181,7 @@ void setup() {
 
   // Initialize interrupt pin
   pinMode(SPI_INT_PIN, INPUT);
-  Serial.println("Motor Control Initialized");
+  // Serial.println("Motor Control Initialized");
 
   // float lastTime = millis(); // Initialize lastTime here!
 }
@@ -272,43 +272,43 @@ void loop() {
   // Send the motor output
   sendMotorOutput({totalPWM1, totalPWM2, totalPWM3});
 
-//   // Print the current state for Motor 1 for debugging
-  // Serial.print("setpoint motor 1:");
-  // Serial.print(commandedSpeeds[0]);
-  // Serial.print(" rpm:");
-  // Serial.print(RPM1Actual);
-  // Serial.print(" pwm:");
-  // Serial.print(totalPWM1);
-  // Serial.print(" basePWM:");
-  // Serial.print(PWM1Base);
-  // Serial.print(" deltaPWM:");
-  // Serial.print(deltaPWM1);
-  // Serial.print(" time:");
-  // Serial.println(lastTime);
-  // Serial.print("setpoint motor 2:");
-  // Serial.print(commandedSpeeds[1]);
-  // Serial.print(" rpm:");
-  // Serial.print(RPM2Actual);
-  // Serial.print(" pwm:");
-  // Serial.print(totalPWM2);
-  // Serial.print(" basePWM:");
-  // Serial.print(PWM2Base);
-  // Serial.print(" deltaPWM:");
-  // Serial.print(deltaPWM2);
-  // Serial.print(" time:");
-  // Serial.println(lastTime);
-  // Serial.print("setpoint motor 3:");
-  // Serial.print(commandedSpeeds[2]);
-  // Serial.print(" rpm:");
-  // Serial.print(RPM3Actual);
-  // Serial.print(" pwm:");
-  // Serial.print(totalPWM3);
-  // Serial.print(" basePWM:");
-  // Serial.print(PWM3Base);
-  // Serial.print(" deltaPWM:");
-  // Serial.print(deltaPWM3);
-  // Serial.print(" time:");
-  // Serial.println(lastTime);
+  // Print the current state for Motor 1 for debugging
+  Serial.print("setpoint motor 1:");
+  Serial.print(commandedSpeeds[0]);
+  Serial.print(" rpm:");
+  Serial.print(RPM1Actual);
+  Serial.print(" pwm:");
+  Serial.print(totalPWM1);
+  Serial.print(" basePWM:");
+  Serial.print(PWM1Base);
+  Serial.print(" deltaPWM:");
+  Serial.print(deltaPWM1);
+  Serial.print(" time:");
+  Serial.println(lastTime);
+  Serial.print("setpoint motor 2:");
+  Serial.print(commandedSpeeds[1]);
+  Serial.print(" rpm:");
+  Serial.print(RPM2Actual);
+  Serial.print(" pwm:");
+  Serial.print(totalPWM2);
+  Serial.print(" basePWM:");
+  Serial.print(PWM2Base);
+  Serial.print(" deltaPWM:");
+  Serial.print(deltaPWM2);
+  Serial.print(" time:");
+  Serial.println(lastTime);
+  Serial.print("setpoint motor 3:");
+  Serial.print(commandedSpeeds[2]);
+  Serial.print(" rpm:");
+  Serial.print(RPM3Actual);
+  Serial.print(" pwm:");
+  Serial.print(totalPWM3);
+  Serial.print(" basePWM:");
+  Serial.print(PWM3Base);
+  Serial.print(" deltaPWM:");
+  Serial.print(deltaPWM3);
+  Serial.print(" time:");
+  Serial.println(lastTime);
 
   delay(2);
 }
