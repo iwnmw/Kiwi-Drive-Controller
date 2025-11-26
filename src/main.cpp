@@ -213,15 +213,12 @@ void loop() {
 
     CAN.readMsgBuf(&rxId, &len, rxBuf);
 
-    if (rxId == 0x140 && len == 8) { // Frame 1: omega and vx
-        float newYawRate, newXVelocity;
-        memcpy(&newYawRate, &rxBuf[0], 4);
-        memcpy(&newXVelocity, &rxBuf[4], 4);
-        roverSpeed[0] = newYawRate;
-        roverSpeed[1] = newXVelocity;
-        Serial.print("Updated rover speed from CAN: ");
-        Serial.print("Yaw Rate: "); Serial.print(newYawRate);
-        Serial.print(", X Velocity: "); Serial.print(newXVelocity);
+    if (rxId == 0x140 && len == 4) { // Frame 1: omega
+        float newXVelocity;
+          memcpy(&newXVelocity, &rxBuf[0], 4);
+          roverSpeed[1] = newXVelocity;
+          Serial.print("Updated rover speed from CAN: ");
+          Serial.print("X Velocity: "); Serial.println(newXVelocity);
     }
     else if (rxId == 0x141 && len == 4) { // Frame 2: vy
       float newYVelocity;
@@ -229,6 +226,13 @@ void loop() {
         roverSpeed[2] = newYVelocity;
         Serial.print("Updated rover speed from CAN: ");
         Serial.print("Y Velocity: "); Serial.println(newYVelocity);
+    }
+    else if (rxId == 0x142 && len == 4) { // Frame 3: vx
+      float newYawRate;
+        memcpy(&newYawRate, &rxBuf[0], 4);
+        roverSpeed[0] = newYawRate;
+        Serial.print("Updated rover speed from CAN: ");
+        Serial.print("Yaw Rate: "); Serial.print(newYawRate);
     }
   }
 
