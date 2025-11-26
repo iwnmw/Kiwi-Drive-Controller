@@ -50,7 +50,7 @@ Encoder Enc2(encoderPinA2, encoderPinB2);
 Encoder Enc3(encoderPinA3, encoderPinB3);
 
 // Define values for converting the encoder readings to speed (RPM)
-const int encoderCPR = 4480; // Counts per revolution of the encoder (output shaft) (for 70:1 reduction)
+const int encoderCPR = 9600; // Counts per revolution of the encoder (output shaft) (for 150:1 reduction)
 unsigned long lastTime = 0;
 
 // Initialize the PID controller object
