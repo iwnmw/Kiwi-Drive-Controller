@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../../CAN_LACs"
+		},
+		{
+			"name": "Kiwi Drive Controller",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}

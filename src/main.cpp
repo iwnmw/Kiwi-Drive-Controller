@@ -83,10 +83,10 @@ int speedToPWM(int commandedSpeed) {
   double rpm5 = rpm4 * rpmMath;
   double rpm6 = rpm5 * rpmMath;
   if (commandedSpeed > 0) {
-    float pwm = -6.665e-10*rpm6 + 3.163411e-07*rpm5 - 5.744087e-05*rpm4 + 5.096598e-03*rpm3 - 0.226899*rpm2 + 5.439907*rpmMath - 17.815152;
+    float pwm = -2.97587e-8*rpm6 + 7.47872e-06*rpm5 - 6.68143e-04*rpm4 + 2.71303e-02*rpm3 - 0.485440*rpm2 + 3.91739*rpmMath + 10.8885;
     return constrain((int)pwm, 0, 255); // Ensure PWM is within valid range
   } else if (commandedSpeed < 0) {
-    float pwm = 6.665e-10*rpm6 - 3.163411e-07*rpm5 - 5.744087e-05*rpm4 - 5.096598e-03*rpm3 + 0.226899*rpm2 - 5.439907*rpmMath + 17.815152;
+    float pwm = 2.97587e-8*rpm6 - 7.47872e-06*rpm5 + 6.68143e-04*rpm4 - 2.71303e-02*rpm3 + 0.485440*rpm2 - 3.91739*rpmMath - 10.8885;
     return constrain((int)pwm, -255, 0); // Ensure PWM is within valid range
   }
   return 0; // If speed is zero, return zero PWM
