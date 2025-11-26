@@ -195,16 +195,6 @@ long oldPosition3  = 0;
 
 void loop() {
 
-  // CAN test message: send every 5000 ms
-    // if (millis() - lastCanTestTime > 5000) {
-    //     Serial.println("About to send CAN test message");
-    //     byte testData[2] = {0xAB, 0xCD};
-    //     byte sndStat = CAN.sendMsgBuf(0x123, 0, 2, testData);
-    //     Serial.print("CAN send status: "); Serial.println(sndStat);
-    //     Serial.println("Sent CAN test message: 0x123 [0xAB 0xCD]");
-    //     lastCanTestTime = millis();
-    // }
-
   // First, receive CAN messages to update rover speed if available
   if (CAN.checkReceive() == CAN_MSGAVAIL) {
     long unsigned int rxId;

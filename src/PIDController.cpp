@@ -31,19 +31,24 @@ void PIDController::reset() {
 
 // Function to compute the PID output
 float PIDController::compute(float setpoint, float measuredValue, float deltaTime) {
+    // If too much time has passed, reset integral to avoid runaway
+    if (deltaTime > _maxDeltaTime) {
+        _integral = 0;
+        _prevError = 0;
+        // Optionally return 0 output immediately
+        // return 0.0f;
+    }
+
     float error = setpoint - measuredValue;
     _integral += error * deltaTime;
     float derivative = (error - _prevError) / deltaTime;
 
     float output = _kp * error + _ki * _integral + _kd * derivative;
 
-    // Clamp output to the defined limits
-    if (output > _outputMax) {
-        output = _outputMax;
-    } else if (output < _outputMin) {
-        output = _outputMin;
-    }
+    // Clamp output
+    if (output > _outputMax) output = _outputMax;
+    else if (output < _outputMin) output = _outputMin;
 
-    _prevError = error; // Update previous error for next iteration
+    _prevError = error;
     return output;
 }

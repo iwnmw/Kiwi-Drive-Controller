@@ -16,6 +16,7 @@ class PIDController {
         float _integral;
         float _prevError;
         float _outputMin, _outputMax;
+        float _maxDeltaTime = 0.5f; // Maximum delta time in seconds to prevent integral windup
 };
 
 #endif
