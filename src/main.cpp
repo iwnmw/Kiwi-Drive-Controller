@@ -35,7 +35,7 @@ const int maxSpeed = 530; // Maximum speed in RPM
 // For now, manually set the rover speed in the format {yaw rate, x velocity, y velocity}. Units rad/s and inches/sec
 std::vector<float> roverSpeed = {0.0f, 0.0f, 0.0f}; // Initialize rover speed to 0, will be updated by CAN messages
 
-// Define variables for encoder reading and initialize object 
+// Define variables for encoder reading and initialize objects
 const int encoderPinA1 = 46; // Must be interrupt capable; keep in mind if you change to another board
 const int encoderPinB1 = 47;
 
@@ -64,7 +64,10 @@ PIDController PID1(PID_K, PID_I, PID_D, -255, 255); // PID gains and output limi
 PIDController PID2(PID_K, PID_I, PID_D, -255, 255);
 PIDController PID3(PID_K, PID_I, PID_D, -255, 255); // May not need three separate controllers, but making this initially
 
-
+// Initialize some variables for CAN timing safety - to prevent first message from computing crazy velocities
+unsigned long lastCanRxTime = 0;
+const unsigned long CAN_TIMEOUT_MS = 2000; // Manually assign a dt of 5 seconds if no CAN messages have been received in a while
+const unsigned long FIRST_CMD_DT_MS = 5000; // Assume dt of 5 seconds if haven't received a message in a while (whole system is initially given 5 seconds to get to the first position)
 
 // Define a function to convert from rotational speed to PWM output
 // Note: negative PWM values will not actually be output as negative PWM values, but will simply reverse the motor direction and use the magnitue for speed
@@ -203,26 +206,29 @@ void loop() {
 
     CAN.readMsgBuf(&rxId, &len, rxBuf);
 
+    // Mark time of last CAN message reception
+    lastCanRxTime = millis();
+
     if (rxId == 0x140 && len == 4) { // Frame 1: omega
         float newXVelocity;
           memcpy(&newXVelocity, &rxBuf[0], 4);
           roverSpeed[1] = newXVelocity;
-          Serial.print("Updated rover speed from CAN: ");
-          Serial.print("X Velocity: "); Serial.println(newXVelocity);
+          // Serial.print("Updated rover speed from CAN: ");
+          // Serial.print("X Velocity: "); Serial.println(newXVelocity);
     }
     else if (rxId == 0x141 && len == 4) { // Frame 2: vy
       float newYVelocity;
         memcpy(&newYVelocity, &rxBuf[0], 4);
         roverSpeed[2] = newYVelocity;
-        Serial.print("Updated rover speed from CAN: ");
-        Serial.print("Y Velocity: "); Serial.println(newYVelocity);
+        // Serial.print("Updated rover speed from CAN: ");
+        // Serial.print("Y Velocity: "); Serial.println(newYVelocity);
     }
     else if (rxId == 0x142 && len == 4) { // Frame 3: vx
       float newYawRate;
         memcpy(&newYawRate, &rxBuf[0], 4);
         roverSpeed[0] = newYawRate;
-        Serial.print("Updated rover speed from CAN: ");
-        Serial.print("Yaw Rate: "); Serial.print(newYawRate);
+        // Serial.print("Updated rover speed from CAN: ");
+        // Serial.print("Yaw Rate: "); Serial.print(newYawRate);
     }
   }
 
@@ -233,6 +239,13 @@ void loop() {
   unsigned long currentTime = millis();
   float dt = currentTime - lastTime;
   if (dt <= 0) dt = 1; // Prevent division by zero or negative time
+
+  // Force dt to 5 seconds if it's the first CAN message receive (or in general if no message has been received in a while)
+  unsigned long timeSinceLastCan = currentTime - lastCanRxTime;
+  if (timeSinceLastCan > CAN_TIMEOUT_MS) {
+    dt = FIRST_CMD_DT_MS; // force the five second ramp if no CAN messages received recently
+  }
+
   long deltaPosition1 = newPosition1 - oldPosition1;
   long deltaPosition2 = newPosition2 - oldPosition2;
   long deltaPosition3 = newPosition3 - oldPosition3;
@@ -267,42 +280,42 @@ void loop() {
   sendMotorOutput({totalPWM1, totalPWM2, totalPWM3});
 
   // Print the current state for Motor 1 for debugging
-  Serial.print("setpoint motor 1:");
-  Serial.print(commandedSpeeds[0]);
-  Serial.print(" rpm:");
-  Serial.print(RPM1Actual);
-  Serial.print(" pwm:");
-  Serial.print(totalPWM1);
-  Serial.print(" basePWM:");
-  Serial.print(PWM1Base);
-  Serial.print(" deltaPWM:");
-  Serial.print(deltaPWM1);
-  Serial.print(" time:");
-  Serial.println(lastTime);
-  Serial.print("setpoint motor 2:");
-  Serial.print(commandedSpeeds[1]);
-  Serial.print(" rpm:");
-  Serial.print(RPM2Actual);
-  Serial.print(" pwm:");
-  Serial.print(totalPWM2);
-  Serial.print(" basePWM:");
-  Serial.print(PWM2Base);
-  Serial.print(" deltaPWM:");
-  Serial.print(deltaPWM2);
-  Serial.print(" time:");
-  Serial.println(lastTime);
-  Serial.print("setpoint motor 3:");
-  Serial.print(commandedSpeeds[2]);
-  Serial.print(" rpm:");
-  Serial.print(RPM3Actual);
-  Serial.print(" pwm:");
-  Serial.print(totalPWM3);
-  Serial.print(" basePWM:");
-  Serial.print(PWM3Base);
-  Serial.print(" deltaPWM:");
-  Serial.print(deltaPWM3);
-  Serial.print(" time:");
-  Serial.println(lastTime);
+  // Serial.print("setpoint motor 1:");
+  // Serial.print(commandedSpeeds[0]);
+  // Serial.print(" rpm:");
+  // Serial.print(RPM1Actual);
+  // Serial.print(" pwm:");
+  // Serial.print(totalPWM1);
+  // Serial.print(" basePWM:");
+  // Serial.print(PWM1Base);
+  // Serial.print(" deltaPWM:");
+  // Serial.print(deltaPWM1);
+  // Serial.print(" time:");
+  // Serial.println(lastTime);
+  // Serial.print("setpoint motor 2:");
+  // Serial.print(commandedSpeeds[1]);
+  // Serial.print(" rpm:");
+  // Serial.print(RPM2Actual);
+  // Serial.print(" pwm:");
+  // Serial.print(totalPWM2);
+  // Serial.print(" basePWM:");
+  // Serial.print(PWM2Base);
+  // Serial.print(" deltaPWM:");
+  // Serial.print(deltaPWM2);
+  // Serial.print(" time:");
+  // Serial.println(lastTime);
+  // Serial.print("setpoint motor 3:");
+  // Serial.print(commandedSpeeds[2]);
+  // Serial.print(" rpm:");
+  // Serial.print(RPM3Actual);
+  // Serial.print(" pwm:");
+  // Serial.print(totalPWM3);
+  // Serial.print(" basePWM:");
+  // Serial.print(PWM3Base);
+  // Serial.print(" deltaPWM:");
+  // Serial.print(deltaPWM3);
+  // Serial.print(" time:");
+  // Serial.println(lastTime);
 
   delay(2);
 }
